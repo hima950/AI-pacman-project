@@ -58,9 +58,47 @@ is cached to `data/cache/*.parquet` so subsequent runs are fast.
 pip install -r requirements.txt
 python main.py                              # Strategies A/B/C against real data
 python main_diversified.py                  # Strategy D vs. A/B/C, real data + comparison plots
-python tests/test_synthetic.py              # A/B/C mechanics self-test, no network needed
-python tests/test_diversified_synthetic.py  # Strategy D mechanics self-test, no network needed
+
+pip install -r requirements-dev.txt
+pytest tests/                                # everything below, one command, no network needed
+python tests/test_synthetic.py              # (equivalently, standalone) A/B/C mechanics self-test
+python tests/test_diversified_synthetic.py  # (equivalently, standalone) Strategy D mechanics self-test
 ```
+
+## Testing
+
+Two layers, both network-free (synthetic/fabricated data only) and both
+run by a plain `pytest tests/`:
+
+- **`tests/unit/`** -- isolated, hand-computable unit tests for individual
+  functions: XIRR against a closed-form compounding example, TWR/vol/
+  Sharpe/Sortino/drawdown against manually-derived expected values,
+  ranking's no-look-ahead and partial-year-exclusion rules, membership
+  lookup/fallback/ticker-reuse logic, the `_Book` ledger's slippage and
+  tax arithmetic in isolation, cash-sleeve interest accrual against an
+  exact compounding formula, and the concentration diagnostic. 45 tests.
+- **`tests/test_synthetic.py`** and **`tests/test_diversified_synthetic.py`**
+  -- whole-pipeline scenarios against fabricated tickers with engineered
+  edge cases (an IPO mid-year, a delisting mid-year, a name that delists
+  *before* it's ever bought, an asset that starts trading partway through
+  the backtest, an engineered >25% crash with re-arming). These predate
+  pytest adoption and use a `check()`/print pattern for a readable
+  standalone transcript (`python tests/test_synthetic.py`); a small
+  `pytest_checked` decorator makes a failed `check()` also fail the test
+  under plain `pytest` (verified by deliberately breaking a check and
+  confirming pytest reports the failure, then reverting -- not just
+  assumed). 6 tests, covering everything the unit tests don't: end-to-end
+  wiring, the delisting-redistribution mechanic, the 6-sleeve combiner's
+  totals reconciling, and a full smoke test of every plot/CSV export.
+
+All 51 tests currently pass. Two of them print a benign
+`PytestReturnNotNoneWarning` (they double as pytest tests and as
+data-preparing helpers called by a later test, so they legitimately
+return a value) -- not a failure, just pytest noting the pattern.
+
+This layer proves the *mechanics* are correct; it cannot validate the
+real S&P 500 numbers, since this sandbox can't reach Yahoo Finance or
+Wikipedia (see the warning above).
 
 ## Methodology
 
@@ -268,8 +306,10 @@ src/diversified.py        Strategy D's 6-sleeve composer (reuses src/portfolio.p
 src/metrics.py            XIRR, TWR, vol, Sharpe, Sortino, drawdown, ...
 src/reporting.py          tables, plots, CSV export
 src/interpretation.py     auto-generated written read of the results
-tests/test_synthetic.py              A/B/C mechanics self-test against fabricated data (no network)
-tests/test_diversified_synthetic.py  Strategy D mechanics self-test (crash detection, re-arming, sleeve totals)
+tests/unit/                          isolated, hand-computable unit tests (metrics, ranking, membership, _Book, crash accrual, interpretation)
+tests/test_synthetic.py              A/B/C whole-pipeline scenario tests against fabricated data (no network)
+tests/test_diversified_synthetic.py  Strategy D whole-pipeline scenario tests (crash detection, re-arming, sleeve totals)
+tests/conftest.py                    pytest sys.path setup shared by every test file
 data/membership/          bundled point-in-time S&P 500 membership snapshot + license
 data/cache/                parquet price cache (gitignored, populated at runtime)
 output/                    all generated reports (gitignored; regenerate via main.py / main_diversified.py)

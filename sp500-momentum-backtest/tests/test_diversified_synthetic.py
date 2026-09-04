@@ -31,6 +31,23 @@ def check(name: str, cond: bool, detail: str = "") -> None:
         FAILURES.append(name)
 
 
+def pytest_checked(fn):
+    """See tests/test_synthetic.py's identical helper: makes a failed
+    check() actually fail the test under a plain `pytest` run, not just
+    under this file's own __main__ block."""
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        start = len(FAILURES)
+        result = fn(*args, **kwargs)
+        new_failures = FAILURES[start:]
+        assert not new_failures, f"{len(new_failures)} check(s) failed in {fn.__name__}: {new_failures}"
+        return result
+
+    return wrapper
+
+
 def piecewise_series(segments: list[tuple[str, str, float]], base_price: float) -> pd.Series:
     """segments: list of (start, end, daily_rate); each segment's start
     price continues from the previous segment's ending price."""
@@ -84,6 +101,7 @@ def build_crash_universe():
     return prices, mem, spy
 
 
+@pytest_checked
 def test_crash_detection_and_deployment():
     prices, mem, spy = build_crash_universe()
     start, end = pd.Timestamp("2000-01-01"), pd.Timestamp("2014-12-31")
@@ -130,6 +148,7 @@ def test_crash_detection_and_deployment():
     return prices, mem, spy
 
 
+@pytest_checked
 def test_diversified_composer():
     prices, mem, spy = test_crash_detection_and_deployment()
     start, end = pd.Timestamp("2000-01-01"), pd.Timestamp("2014-12-31")
@@ -196,6 +215,7 @@ def test_diversified_composer():
     print(f"  crash events: {[(e.date.date(), f'{e.spy_drawdown:.1%}', e.winners) for e in div_result.crash_events]}")
 
 
+@pytest_checked
 def test_asset_starting_mid_backtest():
     """The high_risk (BTC-USD) sleeve's real-world situation: the asset has
     no price history for the first ~14 years of the 2000-2026 backtest

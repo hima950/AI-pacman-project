@@ -36,6 +36,26 @@ def check(name: str, cond: bool, detail: str = "") -> None:
         FAILURES.append(name)
 
 
+def pytest_checked(fn):
+    """check() prints and records failures but never raises, so a plain
+    `pytest` run of this file would otherwise report every test_* function
+    as passed regardless of what check() found. This decorator makes a
+    failed check() actually fail the test under pytest too, while keeping
+    the full readable PASS/FAIL transcript standalone `python
+    tests/test_synthetic.py` runs on."""
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        start = len(FAILURES)
+        result = fn(*args, **kwargs)
+        new_failures = FAILURES[start:]
+        assert not new_failures, f"{len(new_failures)} check(s) failed in {fn.__name__}: {new_failures}"
+        return result
+
+    return wrapper
+
+
 def bdate_prices(start: str, end: str, daily_rates: dict[int, float], base_price: float) -> pd.Series:
     """Build a synthetic price series that compounds at a per-calendar-year
     daily growth rate, chained across years so annual returns are exact and
@@ -99,6 +119,7 @@ def build_synthetic_universe():
     return prices, mem
 
 
+@pytest_checked
 def test_ranking_excludes_ipo_and_ranks_correctly():
     prices, mem = build_synthetic_universe()
     res2000 = ranking.rank_year(2000, mem, prices, top_ns=[3])
@@ -126,6 +147,7 @@ def test_ranking_excludes_ipo_and_ranks_correctly():
     return prices, mem, res2000, res2001
 
 
+@pytest_checked
 def test_portfolio_mechanics():
     prices, mem, res2000, res2001 = test_ranking_excludes_ipo_and_ranks_correctly()
     res2002 = ranking.rank_year(2002, mem, prices, top_ns=[3])
@@ -203,6 +225,7 @@ def test_portfolio_mechanics():
     print(f"  annual_rebalance: final=${ar.final_value:,.0f} contributed=${ar.total_contributed:,.0f}")
 
 
+@pytest_checked
 def test_index_strategy_variant_equivalence():
     prices, mem = build_synthetic_universe()
     spy = prices["SPY"]
