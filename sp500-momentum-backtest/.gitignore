@@ -1,0 +1,8 @@
+data/cache/
+output/*.png
+output/*.csv
+output/*.md
+output/run.log
+__pycache__/
+*.pyc
+.pytest_cache/
