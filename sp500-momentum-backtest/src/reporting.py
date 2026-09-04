@@ -105,6 +105,96 @@ def plot_drawdowns(results: dict[str, SimulationResult], out_path) -> None:
     plt.close(fig)
 
 
+SLEEVE_COLORS = {
+    "metals_bonds": "#B8860B",
+    "sp_top10": "#1f77b4",
+    "asia_top10": "#d62728",
+    "index_fund": "#2ca02c",
+    "cash": "#7f7f7f",
+    "high_risk": "#9467bd",
+}
+SLEEVE_LABELS = {
+    "metals_bonds": "Metals & Bonds (10%)",
+    "sp_top10": "S&P Top 10 (20%)",
+    "asia_top10": "Asia Top 10 (20%)",
+    "index_fund": "Index Fund (20%)",
+    "cash": "Cash (20%, crash-deployed)",
+    "high_risk": "High Risk (BTC, 10%)",
+}
+
+
+def plot_sleeve_composition(sleeve_monthly_value: pd.DataFrame, crash_dates: list, out_path) -> None:
+    """Stacked-area chart of the diversified strategy's six sleeves over
+    time, with vertical markers where the crash-deployment rule fired."""
+    fig, ax = plt.subplots(figsize=(12, 7))
+    cols = [c for c in SLEEVE_COLORS if c in sleeve_monthly_value.columns]
+    values = [sleeve_monthly_value[c].clip(lower=0).values for c in cols]
+    ax.stackplot(
+        sleeve_monthly_value.index,
+        *values,
+        labels=[SLEEVE_LABELS.get(c, c) for c in cols],
+        colors=[SLEEVE_COLORS[c] for c in cols],
+        alpha=0.85,
+    )
+    for i, d in enumerate(crash_dates):
+        ax.axvline(d, color="black", linestyle=":", linewidth=1.2, alpha=0.8)
+        ax.text(
+            d, ax.get_ylim()[1] * 0.97, f" crash {i + 1}", rotation=90, va="top", ha="left", fontsize=7,
+        )
+    ax.set_title("Diversified strategy: sleeve composition over time")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Value ($)")
+    ax.legend(loc="upper left", fontsize=8)
+    ax.grid(True, alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_allocation_pie(weights: dict[str, float], out_path) -> None:
+    fig, ax = plt.subplots(figsize=(6.5, 6.5))
+    labels = [SLEEVE_LABELS.get(k, k) for k in weights]
+    colors = [SLEEVE_COLORS.get(k, "#999999") for k in weights]
+    ax.pie(
+        list(weights.values()), labels=labels, autopct="%1.0f%%", colors=colors,
+        startangle=90, wedgeprops={"edgecolor": "white", "linewidth": 1.5},
+        textprops={"fontsize": 8},
+    )
+    ax.set_title("Diversified strategy: target monthly-contribution allocation")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_metric_bars(all_metrics: list[metrics_mod.Metrics], labels: list[str], out_path) -> None:
+    """Grouped bar chart comparing XIRR, Sharpe, and max drawdown across
+    strategies -- the three numbers most people actually compare."""
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    xirrs = [m.xirr * 100 for m in all_metrics]
+    sharpes = [m.sharpe for m in all_metrics]
+    dds = [m.max_drawdown * 100 for m in all_metrics]
+    colors = plt.cm.tab10.colors[: len(labels)]
+
+    for ax, values, title, ylabel in (
+        (axes[0], xirrs, "Money-weighted return (XIRR)", "%"),
+        (axes[1], sharpes, "Sharpe ratio", "ratio"),
+        (axes[2], dds, "Max drawdown", "%"),
+    ):
+        bars = ax.bar(labels, values, color=colors)
+        ax.set_title(title, fontsize=10)
+        ax.set_ylabel(ylabel)
+        ax.tick_params(axis="x", labelrotation=30, labelsize=7)
+        ax.grid(True, axis="y", alpha=0.3)
+        ax.axhline(0, color="black", linewidth=0.8)
+        for b, v in zip(bars, values):
+            ax.annotate(f"{v:.1f}", (b.get_x() + b.get_width() / 2, v), ha="center",
+                        va="bottom" if v >= 0 else "top", fontsize=7)
+    fig.suptitle("Headline metric comparison", fontsize=13)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def export_all_csv(
     out_dir,
     summary_df: pd.DataFrame,

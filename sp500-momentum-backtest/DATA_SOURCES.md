@@ -85,3 +85,19 @@ today's S&P 500 roster if neither is available -- see the
 The bundled snapshot only stores one row **per year-end** (not the full
 daily history) because that's all this backtest actually needs: eligibility
 for year Y's basket is decided once, from the 31-Dec-(Y-1) snapshot.
+
+## Strategy D's additional tickers
+
+`GLD`, `AGG`, and `BTC-USD` are standard `yfinance` tickers (SPDR Gold
+Shares, iShares Core U.S. Aggregate Bond ETF, and Coinbase-sourced
+BTC-USD spot) fetched the same way as every other price series -- no
+special provenance concerns beyond the usual adjusted-close caveat.
+
+The Asia sleeve's `config.ASIA_UNIVERSE` is **not** sourced from any
+index-membership dataset at all -- there is no free equivalent of the
+S&P 500 point-in-time dataset above for a broad Asian index. It's a
+hand-picked, fixed list of large, liquid Asia-domiciled companies
+tradeable via `yfinance`, chosen for name recognition and data
+availability, not for representativeness of any particular index. See
+`README.md` -> "Strategy D" -> "The Asia sleeve, honestly" for the full
+caveat.

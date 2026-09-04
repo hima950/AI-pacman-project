@@ -58,6 +58,17 @@ class MembershipData:
             )
         return set(row.iloc[0]["tickers"])
 
+    def members_as_of_nearest_year_end(self, year: int) -> set[str]:
+        """Like members_as_of_year_end, but falls back to the nearest earlier
+        year with a snapshot instead of raising (used by the crash-deployment
+        rule, which can fire at an arbitrary date rather than a calendar
+        year boundary)."""
+        available = sorted(self.yearend["as_of_year_end"].tolist())
+        candidates = [y for y in available if y <= year]
+        if not candidates:
+            raise ValueError(f"No point-in-time membership snapshot available at or before {year}.")
+        return self.members_as_of_year_end(max(candidates))
+
     def is_active_on(self, ticker: str, date: pd.Timestamp) -> bool:
         """Guard against ticker-symbol reuse: True if `ticker` is documented
         to have been an actively-listed S&P 500 symbol covering `date`.
@@ -146,6 +157,17 @@ def load_membership(timeout: float = 20.0) -> MembershipData:
         )
 
     return MembershipData(yearend=yearend, ticker_ranges=ticker_ranges, source=source)
+
+
+def constant_membership(tickers: set[str], years: range, source_label: str = "fixed-basket") -> MembershipData:
+    """Build a MembershipData whose roster is the same fixed ticker set for
+    every year in `years` -- used for baskets that aren't a real
+    point-in-time index (e.g. the Asia sleeve's hand-picked stock list),
+    so they can reuse the same rank_year()/rank_trailing_period() machinery
+    as the real S&P 500 sleeve. NOT a substitute for real point-in-time
+    membership -- see config.ASIA_UNIVERSE's docstring/comment."""
+    rows = [{"as_of_year_end": y, "snapshot_date": None, "tickers": set(tickers)} for y in years]
+    return MembershipData(yearend=pd.DataFrame(rows), ticker_ranges=None, source=source_label)
 
 
 def universe_of_all_tickers_needed(membership: MembershipData, years: range) -> set[str]:

@@ -68,3 +68,63 @@ BUNDLED_TICKER_RANGES = MEMBERSHIP_DIR / "sp500_ticker_start_end.csv"
 # (e.g. BRK.B -> BRK-B, BF.B -> BF-B).
 def to_yfinance_symbol(ticker: str) -> str:
     return ticker.replace(".", "-")
+
+
+# ============================================================================
+# Strategy D: "All-Weather Diversified" -- see README.md for the full sleeve
+# breakdown and the assumptions made to resolve the ambiguous parts of the
+# request (Asian-stock universe, the crash-deployment rule's second clause).
+# ============================================================================
+
+# Monthly $1,000 contribution split by sleeve (must sum to 1.0).
+DIVERSIFIED_WEIGHTS = {
+    "metals_bonds": 0.10,   # split 50/50 GLD / AGG within this sleeve
+    "sp_top10": 0.20,       # reuses the existing point-in-time S&P 500 top-10 momentum basket
+    "asia_top10": 0.20,     # top 10 of ASIA_UNIVERSE by trailing 1-year return, reselected annually
+    "index_fund": 0.20,     # SPY (see README: used as a VOO stand-in, VOO only exists from 2010)
+    "cash": 0.20,           # accrues at the risk-free rate; deployed in full on a >25% SPY crash
+    "high_risk": 0.10,      # BTC-USD (see README: sits idle, uninvested, until BTC-USD price history begins in Sep 2014)
+}
+assert abs(sum(DIVERSIFIED_WEIGHTS.values()) - 1.0) < 1e-9
+
+METALS_TICKER = "GLD"
+BONDS_TICKER = "AGG"
+HIGH_RISK_TICKER = "BTC-USD"
+
+# Fixed, hand-picked basket of large, liquid Asia-domiciled companies
+# tradeable via yfinance (mostly US-listed ADRs, plus a few major native
+# listings for names without a liquid ADR). This is NOT a real point-in-time
+# index -- there is no free equivalent of the S&P 500 membership dataset for
+# a broad Asian index, so this list is today's well-known large-caps
+# projected across the whole backtest window. Ranked by trailing 1-year
+# return each year exactly like the S&P sleeve; results should be read as
+# more survivorship-biased than the S&P sleeves. See DATA_SOURCES.md.
+ASIA_UNIVERSE = {
+    "TSM",       # Taiwan Semiconductor (ADR)
+    "BABA",      # Alibaba (ADR)
+    "TM",        # Toyota Motor (ADR)
+    "SONY",      # Sony Group (ADR)
+    "INFY",      # Infosys (ADR)
+    "HDB",       # HDFC Bank (ADR)
+    "IBN",       # ICICI Bank (ADR)
+    "WIT",       # Wipro (ADR)
+    "JD",        # JD.com (ADR)
+    "BIDU",      # Baidu (ADR)
+    "NTES",      # NetEase (ADR)
+    "PDD",       # PDD Holdings / Pinduoduo (ADR)
+    "TCEHY",     # Tencent (OTC ADR)
+    "MUFG",      # Mitsubishi UFJ Financial (ADR)
+    "SMFG",      # Sumitomo Mitsui Financial (ADR)
+    "NMR",       # Nomura Holdings (ADR)
+    "CHT",       # Chunghwa Telecom (ADR)
+    "SE",        # Sea Limited (ADR, Singapore)
+    "TTM",       # Tata Motors (ADR)
+    "GDS",       # GDS Holdings (ADR)
+    "005930.KS",  # Samsung Electronics (Korea Exchange)
+    "RELIANCE.NS",  # Reliance Industries (NSE)
+    "TCS.NS",    # Tata Consultancy Services (NSE)
+}
+
+CRASH_DRAWDOWN_THRESHOLD = 0.25   # SPY drawdown-from-running-peak that triggers deployment
+CRASH_LOOKBACK_YEARS = 10         # "winners of the previous 10 years"
+CRASH_TOP_N = 10

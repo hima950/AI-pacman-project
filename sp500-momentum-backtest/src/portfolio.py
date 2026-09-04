@@ -274,17 +274,21 @@ def simulate(
             if t not in already_force_sold and (last_avail.get(t) is None or date <= last_avail[t])
         ]
 
-        if not active_basket:
+        if active_basket:
+            leftover_total = 0.0
+            per_name = contribution / len(active_basket)
+            for ticker in active_basket:
+                leftover_total += do_buy(ticker, per_name, date, "contribution")
+            pending_cash += leftover_total
+            handle_forced_delistings(date, year, tax=(variant == "annual_rebalance"))
+        else:
+            # No tradeable basket this month (e.g. no ranking available for
+            # this year yet) -- carry the contribution forward to be
+            # invested once a basket exists, but still record this month's
+            # valuation below rather than silently dropping it from the
+            # output series (that used to shrink monthly_value's index
+            # relative to every other concurrently-running sleeve).
             pending_cash += contribution
-            continue
-
-        leftover_total = 0.0
-        per_name = contribution / len(active_basket)
-        for ticker in active_basket:
-            leftover_total += do_buy(ticker, per_name, date, "contribution")
-        pending_cash += leftover_total
-
-        handle_forced_delistings(date, year, tax=(variant == "annual_rebalance"))
 
         # Snapshot value now, at this month's *last* trading day, using
         # shares as they stand right after this month's transactions --
